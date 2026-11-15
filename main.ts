@@ -52,6 +52,7 @@ import {
 } from './lib/wire2.ts';
 import { candidatesFor, type Candidate } from './lib/candidates.ts';
 import { deliver } from './lib/deliver.ts';
+import { callUpstream } from './lib/upstream.ts';
 
 const PROTOCOL_VERSION = 1;
 const POLL_INTERVAL_MS = 100;
@@ -152,36 +153,6 @@ function models(req: IncomingMessage, res: ServerResponse): void {
   else sendJson(res, 200, openAIModelList(list));
 }
 
-/** One upstream call on the candidate's own wire, the request translated from the client's wire. */
-async function callUpstream(cand: Candidate, clientWire: 'openai' | 'anthropic', body: Json): Promise<Response> {
-  const provider = cand.probe.provider;
-  const base = joinBase(ENV_URL, provider.base);
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    ...authHeaders(provider.auth, provider.key),
-  };
-  const stream = true === body.stream;
-  if (stream) headers.accept = 'text/event-stream';
-  if ('openai' === provider.wire) {
-    const up = 'openai' === clientWire ? { ...body, model: cand.model.id } : anthropicToOpenAI(body, cand.model.id);
-    // A streamed answer must end with a usage chunk; ask for it when the client did not.
-    if (stream && !isRecord(up.stream_options)) up.stream_options = { include_usage: true };
-    return fetch(`${base}/v1/chat/completions`, { method: 'POST', headers, body: JSON.stringify(up) });
-  }
-  if ('anthropic' === provider.wire) {
-    const up = 'anthropic' === clientWire ? { ...body, model: cand.model.id } : openAIToAnthropicRequest(body, cand.model.id);
-    return fetch(`${base}/v1/messages`, { method: 'POST', headers, body: JSON.stringify(up) });
-  }
-  const openaiBody = 'openai' === clientWire ? body : anthropicToOpenAI(body, cand.model.id);
-  const up = openAIToGeminiRequest(openaiBody, cand.model.id);
-  const method = stream ? 'streamGenerateContent' : 'generateContent';
-  return fetch(`${base}/v1beta/models/${cand.model.id}:${method}${stream ? '?alt=sse' : ''}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(up),
-  });
-}
-
 /** Serve one client request on either wire, with failover across the ranked candidates. */
 async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readJson(req);
@@ -201,7 +172,7 @@ async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, r
     providerCalls.set(pid, (providerCalls.get(pid) ?? 0) + 1);
     let upstream: Response;
     try {
-      upstream = await callUpstream(cand, clientWire, body);
+      upstream = await callUpstream(ENV_URL, cand, clientWire, body);
     } catch (err) {
       providerFails.set(pid, (providerFails.get(pid) ?? 0) + 1);
       lastStatus = 502;
