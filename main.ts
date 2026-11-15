@@ -50,6 +50,7 @@ import {
   openAIToAnthropicRequest,
   openAIToGeminiRequest,
 } from './lib/wire2.ts';
+import { candidatesFor, type Candidate } from './lib/candidates.ts';
 
 const PROTOCOL_VERSION = 1;
 const POLL_INTERVAL_MS = 100;
@@ -91,43 +92,6 @@ function servedModels(): ServedModel[] {
       out.push({ display_name: model.display_name, provider: probe.provider.id, id: model.id });
     }
   }
-  return out;
-}
-
-interface Candidate {
-  probe: Probe;
-  model: ProbedModel;
-  rating: number;
-}
-
-/** Every free model meeting the request, ranked for this client wire (see the header comment). */
-function candidatesFor(requires: Requirement, clientWire: 'openai' | 'anthropic'): Candidate[] {
-  const out: Candidate[] = [];
-  for (const probe of probes) {
-    if (!probe.ok) continue;
-    for (const model of probe.models) {
-      const row = ratingOfModel(brief.ratings, probe.provider.id, model.id);
-      if (!modelFree(model, row)) continue;
-      if (!meetsRequirements(requires, capabilitiesOf(model, row))) continue;
-      out.push({ probe, model, rating: row?.rating_milli ?? 0 });
-    }
-  }
-  const jsonReq = true === requires.json;
-  out.sort((a, b) => {
-    const aw = clientWire === a.probe.provider.wire ? 0 : 1;
-    const bw = clientWire === b.probe.provider.wire ? 0 : 1;
-    if (aw !== bw) return aw - bw;
-    if (jsonReq) {
-      const aj = 'openai' === a.probe.provider.wire ? 0 : 1;
-      const bj = 'openai' === b.probe.provider.wire ? 0 : 1;
-      if (aj !== bj) return aj - bj;
-    }
-    const af = (providerFails.get(a.probe.provider.id) ?? 0) >= 2 ? 1 : 0;
-    const bf = (providerFails.get(b.probe.provider.id) ?? 0) >= 2 ? 1 : 0;
-    if (af !== bf) return af - bf;
-    if (b.rating !== a.rating) return b.rating - a.rating;
-    return a.model.id < b.model.id ? -1 : a.model.id > b.model.id ? 1 : 0;
-  });
   return out;
 }
 
@@ -325,7 +289,7 @@ async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, r
   }
   const requires = requirementsFor(body);
   const requested = 'string' === typeof body.model && '' !== body.model ? body.model : 'auto';
-  const candidates = candidatesFor(requires, clientWire);
+  const candidates = candidatesFor(brief, probes, providerFails, requires, clientWire);
   if (0 === candidates.length) {
     return sendError(res, clientWire, 503, 'anthropic' === clientWire ? 'overloaded_error' : 'no_free_model', 'no free model on the directory meets this request');
   }
