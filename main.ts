@@ -53,6 +53,7 @@ import {
 import { candidatesFor, type Candidate } from './lib/candidates.ts';
 import { deliver } from './lib/deliver.ts';
 import { callUpstream } from './lib/upstream.ts';
+import { ManifestCursor } from './lib/requirements.ts';
 
 const PROTOCOL_VERSION = 1;
 const POLL_INTERVAL_MS = 100;
@@ -65,7 +66,7 @@ const PROMPT_FILE = process.env.MAKEFUN_PROMPT_FILE ?? '';
 const brief = readBrief(PROMPT_FILE);
 let probes: Probe[] = [];
 let catalog: CatalogReport = { providers: [] };
-let manifestIndex = 0;
+const manifestCursor = new ManifestCursor(brief.workload);
 
 /** Provider calls made this trial, and how many of them failed, per provider id. */
 const providerCalls = new Map<string, number>();
@@ -95,27 +96,6 @@ function servedModels(): ServedModel[] {
     }
   }
   return out;
-}
-
-function requirementsFor(body: Json): Requirement {
-  const manifest = brief.workload?.manifest ?? [];
-  const entry = manifest[manifestIndex];
-  manifestIndex += 1;
-  if (entry !== undefined) return entry.requires;
-  return requirementsFromBody(body);
-}
-
-function requirementsFromBody(body: Json): Requirement {
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  let vision = false;
-  for (const message of messages) {
-    if (!isRecord(message) || !Array.isArray(message.content)) continue;
-    for (const block of message.content) {
-      if (isRecord(block) && ('image' === block.type || 'image_url' === block.type)) vision = true;
-    }
-  }
-  const format = isRecord(body.response_format) ? body.response_format.type : undefined;
-  return { tools: Array.isArray(body.tools) && body.tools.length > 0, vision, json: 'json_object' === format || 'json_schema' === format };
 }
 
 async function readJson(req: IncomingMessage): Promise<Json | null> {
@@ -159,7 +139,7 @@ async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, r
   if (null === body) {
     return sendError(res, clientWire, 400, 'invalid_request_error', 'the request body is not one JSON object');
   }
-  const requires = requirementsFor(body);
+  const requires = manifestCursor.next(body);
   const requested = 'string' === typeof body.model && '' !== body.model ? body.model : 'auto';
   const candidates = candidatesFor(brief, probes, providerFails, requires, clientWire);
   if (0 === candidates.length) {
