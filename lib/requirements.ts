@@ -29,8 +29,11 @@ export function requirementsFromBody(body: Json): Requirement {
 /** A cursor over the workload manifest: one entry per client request, in arrival order. */
 export class ManifestCursor {
   private index = 0;
+  private readonly workload: WorkloadFile | null;
 
-  constructor(private readonly workload: WorkloadFile | null) {}
+  constructor(workload: WorkloadFile | null) {
+    this.workload = workload;
+  }
 
   /** The requirements for the next client request: the manifest's word, or the body's. */
   next(body: Json): Requirement {
