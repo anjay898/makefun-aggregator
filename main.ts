@@ -12,6 +12,9 @@
 //     lib/wire.ts and lib/wire2.ts, in JSON and in SSE alike.
 // Everything is a pure function of the brief, the requests and the providers' answers: no clock and
 // no randomness anywhere, so a replay makes the same choices.
+// The entrypoint stays thin on purpose: ranking lives in lib/candidates.ts, the upstream call in
+// lib/upstream.ts, answer shaping in lib/deliver.ts and the manifest cursor in
+// lib/requirements.ts, so each policy can be read on its own.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {

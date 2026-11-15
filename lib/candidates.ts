@@ -13,6 +13,8 @@
 //      deterministic tie-break.
 // The ranking is a pure function of the brief, the probes and the failure counts: no clock and no
 // randomness, so a replay ranks identically.
+// Demotion is deliberately shallow: a twice-failed provider sinks below its equals but never off
+// the list, because late in a trial it may be the only candidate left that fits the request.
 
 import {
   capabilitiesOf,
