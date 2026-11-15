@@ -112,14 +112,14 @@ function candidatesFor(requires: Requirement, clientWire: 'openai' | 'anthropic'
       out.push({ probe, model, rating: row?.rating_milli ?? 0 });
     }
   }
-  const jsonReq = requires.json === true;
+  const jsonReq = true === requires.json;
   out.sort((a, b) => {
-    const aw = a.probe.provider.wire === clientWire ? 0 : 1;
-    const bw = b.probe.provider.wire === clientWire ? 0 : 1;
+    const aw = clientWire === a.probe.provider.wire ? 0 : 1;
+    const bw = clientWire === b.probe.provider.wire ? 0 : 1;
     if (aw !== bw) return aw - bw;
     if (jsonReq) {
-      const aj = a.probe.provider.wire === 'openai' ? 0 : 1;
-      const bj = b.probe.provider.wire === 'openai' ? 0 : 1;
+      const aj = 'openai' === a.probe.provider.wire ? 0 : 1;
+      const bj = 'openai' === b.probe.provider.wire ? 0 : 1;
       if (aj !== bj) return aj - bj;
     }
     const af = (providerFails.get(a.probe.provider.id) ?? 0) >= 2 ? 1 : 0;
@@ -145,11 +145,11 @@ function requirementsFromBody(body: Json): Requirement {
   for (const message of messages) {
     if (!isRecord(message) || !Array.isArray(message.content)) continue;
     for (const block of message.content) {
-      if (isRecord(block) && (block.type === 'image' || block.type === 'image_url')) vision = true;
+      if (isRecord(block) && ('image' === block.type || 'image_url' === block.type)) vision = true;
     }
   }
   const format = isRecord(body.response_format) ? body.response_format.type : undefined;
-  return { tools: Array.isArray(body.tools) && body.tools.length > 0, vision, json: format === 'json_object' || format === 'json_schema' };
+  return { tools: Array.isArray(body.tools) && body.tools.length > 0, vision, json: 'json_object' === format || 'json_schema' === format };
 }
 
 async function readJson(req: IncomingMessage): Promise<Json | null> {
@@ -183,7 +183,7 @@ function sendError(res: ServerResponse, wire: 'openai' | 'anthropic', status: nu
 
 function models(req: IncomingMessage, res: ServerResponse): void {
   const list = servedModels();
-  if (typeof req.headers['x-api-key'] === 'string') sendJson(res, 200, anthropicModelList(list));
+  if ('string' === typeof req.headers['x-api-key']) sendJson(res, 200, anthropicModelList(list));
   else sendJson(res, 200, openAIModelList(list));
 }
 
@@ -195,19 +195,19 @@ async function callUpstream(cand: Candidate, clientWire: 'openai' | 'anthropic',
     'content-type': 'application/json',
     ...authHeaders(provider.auth, provider.key),
   };
-  const stream = body.stream === true;
+  const stream = true === body.stream;
   if (stream) headers.accept = 'text/event-stream';
-  if (provider.wire === 'openai') {
-    const up = clientWire === 'openai' ? { ...body, model: cand.model.id } : anthropicToOpenAI(body, cand.model.id);
+  if ('openai' === provider.wire) {
+    const up = 'openai' === clientWire ? { ...body, model: cand.model.id } : anthropicToOpenAI(body, cand.model.id);
     // A streamed answer must end with a usage chunk; ask for it when the client did not.
     if (stream && !isRecord(up.stream_options)) up.stream_options = { include_usage: true };
     return fetch(`${base}/v1/chat/completions`, { method: 'POST', headers, body: JSON.stringify(up) });
   }
-  if (provider.wire === 'anthropic') {
-    const up = clientWire === 'anthropic' ? { ...body, model: cand.model.id } : openAIToAnthropicRequest(body, cand.model.id);
+  if ('anthropic' === provider.wire) {
+    const up = 'anthropic' === clientWire ? { ...body, model: cand.model.id } : openAIToAnthropicRequest(body, cand.model.id);
     return fetch(`${base}/v1/messages`, { method: 'POST', headers, body: JSON.stringify(up) });
   }
-  const openaiBody = clientWire === 'openai' ? body : anthropicToOpenAI(body, cand.model.id);
+  const openaiBody = 'openai' === clientWire ? body : anthropicToOpenAI(body, cand.model.id);
   const up = openAIToGeminiRequest(openaiBody, cand.model.id);
   const method = stream ? 'streamGenerateContent' : 'generateContent';
   return fetch(`${base}/v1beta/models/${cand.model.id}:${method}${stream ? '?alt=sse' : ''}`, {
@@ -261,7 +261,7 @@ async function deliver(
   res: ServerResponse,
 ): Promise<void> {
   const wire = cand.probe.provider.wire;
-  if (wire === clientWire) {
+  if (clientWire === wire) {
     if (stream && upstream.body !== null) {
       beginStream(res);
       await pipeStream(upstream.body, res);
@@ -272,12 +272,12 @@ async function deliver(
     res.end(text);
     return;
   }
-  if (wire === 'gemini') {
+  if ('gemini' === wire) {
     // Normalize to the OpenAI shape first, then to the client's wire if it is Anthropic's.
     if (stream && upstream.body !== null) {
       const chunks = openAIChunksFromGemini(upstream.body);
       beginStream(res);
-      if (clientWire === 'openai') {
+      if ('openai' === clientWire) {
         for await (const chunk of chunks) res.write(sseEvent(null, chunk));
         res.write('data: [DONE]\n\n');
         res.end();
@@ -289,11 +289,11 @@ async function deliver(
     }
     const answer: unknown = await upstream.json();
     const openai = geminiToOpenAIResponse(isRecord(answer) ? answer : {}, cand.model.id);
-    if (clientWire === 'openai') sendJson(res, 200, openai);
+    if ('openai' === clientWire) sendJson(res, 200, openai);
     else sendJson(res, 200, openAIToAnthropic(openai, requested));
     return;
   }
-  if (wire === 'anthropic') {
+  if ('anthropic' === wire) {
     // The client is on the OpenAI wire.
     if (stream && upstream.body !== null) {
       beginStream(res);
@@ -324,10 +324,10 @@ async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, r
     return sendError(res, clientWire, 400, 'invalid_request_error', 'the request body is not one JSON object');
   }
   const requires = requirementsFor(body);
-  const requested = typeof body.model === 'string' && body.model !== '' ? body.model : 'auto';
+  const requested = 'string' === typeof body.model && '' !== body.model ? body.model : 'auto';
   const candidates = candidatesFor(requires, clientWire);
-  if (candidates.length === 0) {
-    return sendError(res, clientWire, 503, clientWire === 'anthropic' ? 'overloaded_error' : 'no_free_model', 'no free model on the directory meets this request');
+  if (0 === candidates.length) {
+    return sendError(res, clientWire, 503, 'anthropic' === clientWire ? 'overloaded_error' : 'no_free_model', 'no free model on the directory meets this request');
   }
   let lastStatus = 502;
   let lastText = '';
@@ -352,25 +352,25 @@ async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, r
     await deliver(upstream, cand, clientWire, body.stream === true, requested, res);
     return;
   }
-  const status = lastStatus === 402 || lastStatus === 429 || lastStatus >= 500 ? lastStatus : 502;
-  sendError(res, clientWire, status, clientWire === 'anthropic' ? 'api_error' : 'upstream_error', `every provider refused this request (last HTTP ${lastStatus}: ${lastText})`);
+  const status = 402 === lastStatus || 429 === lastStatus || lastStatus >= 500 ? lastStatus : 502;
+  sendError(res, clientWire, status, 'anthropic' === clientWire ? 'api_error' : 'upstream_error', `every provider refused this request (last HTTP ${lastStatus}: ${lastText})`);
 }
 
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://entry');
-  if (req.method === 'GET' && url.pathname === '/v1/models') {
+  if ('GET' === req.method && '/v1/models' === url.pathname) {
     models(req, res);
     return;
   }
-  if (req.method === 'POST' && url.pathname === '/v1/chat/completions') {
+  if ('POST' === req.method && '/v1/chat/completions' === url.pathname) {
     await serve('openai', req, res);
     return;
   }
-  if (req.method === 'POST' && url.pathname === '/v1/messages') {
+  if ('POST' === req.method && '/v1/messages' === url.pathname) {
     await serve('anthropic', req, res);
     return;
   }
-  sendError(res, url.pathname === '/v1/messages' ? 'anthropic' : 'openai', 404, 'not_found', `no route ${req.method ?? ''} ${url.pathname}`);
+  sendError(res, '/v1/messages' === url.pathname ? 'anthropic' : 'openai', 404, 'not_found', `no route ${req.method ?? ''} ${url.pathname}`);
 }
 
 function listen(server: Server): Promise<void> {

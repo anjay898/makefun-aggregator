@@ -3,20 +3,20 @@ import { isRecord, type Json } from './providers.ts';
 const CREATED = 1767225600;
 
 function records(value: unknown): Json[] {
-  return Array.isArray(value) ? value.filter(isRecord) : [];
+  return Array.isArray(value) ? value.filter(isRecord) : ([] as Json[]);
 }
 
 function textOf(value: unknown): string {
-  if (typeof value === 'string') return value;
+  if ('string' === typeof value) return value;
   if (!Array.isArray(value)) return '';
   return value
     .filter(isRecord)
-    .map((part) => (typeof part.text === 'string' ? part.text : ''))
+    .map((part) => ('string' === typeof part.text ? part.text : ''))
     .join('');
 }
 
 function parsed(value: unknown, fallback: unknown = {}): unknown {
-  if (typeof value !== 'string') return value ?? fallback;
+  if ('string' !== typeof value) return value ?? fallback;
   try {
     return JSON.parse(value) as unknown;
   } catch {
@@ -29,22 +29,22 @@ function argumentsOf(value: unknown): string {
 }
 
 function dataImage(part: Json): { mime_type: string; data: string } | undefined {
-  if (part.type !== 'image_url') return undefined;
+  if ('image_url' !== part.type) return undefined;
   const image = part.image_url;
-  const url = typeof image === 'string'
+  const url = 'string' === typeof image
     ? image
-    : isRecord(image) && typeof image.url === 'string'
+    : isRecord(image) && 'string' === typeof image.url
       ? image.url
       : '';
   const match = /^data:([^;,]+);base64,([\s\S]*)$/i.exec(url);
-  if (!match) return undefined;
+  if (match === null) return undefined;
   return { mime_type: match[1]!, data: match[2]! };
 }
 
 function stopSequences(value: unknown): string[] | undefined {
-  if (typeof value === 'string') return [value];
+  if ('string' === typeof value) return [value];
   if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === 'string');
+    return value.filter((item): item is string => 'string' === typeof item);
   }
   return undefined;
 }
@@ -139,14 +139,14 @@ function usageChunk(id: string, model: string, usage: Json): Json {
 }
 
 function anthropicContent(value: unknown): Json[] {
-  if (typeof value === 'string') return [{ type: 'text', text: value }];
+  if ('string' === typeof value) return [{ type: 'text', text: value }];
   const content: Json[] = [];
   for (const part of records(value)) {
-    if (part.type === 'text' && typeof part.text === 'string') {
+    if ('text' === part.type && 'string' === typeof part.text) {
       content.push({ type: 'text', text: part.text });
     } else {
       const image = dataImage(part);
-      if (image) {
+      if (image !== undefined) {
         content.push({
           type: 'image',
           source: {
@@ -168,20 +168,20 @@ export function openAIToAnthropicRequest(body: Json, model: string): Json {
 
   for (const message of records(body.messages)) {
     const role = message.role;
-    if (role !== 'tool') pendingToolResults = undefined;
+    if ('tool' !== role) pendingToolResults = undefined;
 
-    if (role === 'system' || role === 'developer') {
+    if ('system' === role || 'developer' === role) {
       system.push(textOf(message.content));
       continue;
     }
 
-    if (role === 'tool') {
+    if ('tool' === role) {
       const result: Json = {
         type: 'tool_result',
         tool_use_id: message.tool_call_id,
         content: textOf(message.content),
       };
-      if (pendingToolResults) {
+      if (pendingToolResults !== undefined) {
         pendingToolResults.push(result);
       } else {
         pendingToolResults = [result];
@@ -190,10 +190,10 @@ export function openAIToAnthropicRequest(body: Json, model: string): Json {
       continue;
     }
 
-    if (role !== 'user' && role !== 'assistant') continue;
+    if ('user' !== role && 'assistant' !== role) continue;
     const content = anthropicContent(message.content);
 
-    if (role === 'assistant') {
+    if ('assistant' === role) {
       for (const call of records(message.tool_calls)) {
         if (!isRecord(call.function)) continue;
         content.push({
@@ -233,16 +233,16 @@ export function openAIToAnthropicRequest(body: Json, model: string): Json {
     });
   }
 
-  if (body.tool_choice === 'auto') {
+  if ('auto' === body.tool_choice) {
     result.tool_choice = { type: 'auto' };
-  } else if (body.tool_choice === 'required') {
+  } else if ('required' === body.tool_choice) {
     result.tool_choice = { type: 'any' };
-  } else if (body.tool_choice === 'none') {
+  } else if ('none' === body.tool_choice) {
     result.tool_choice = { type: 'none' };
   } else if (
     isRecord(body.tool_choice) &&
     isRecord(body.tool_choice.function) &&
-    typeof body.tool_choice.function.name === 'string'
+    'string' === typeof body.tool_choice.function.name
   ) {
     result.tool_choice = {
       type: 'tool',
@@ -263,9 +263,9 @@ export function anthropicToOpenAIResponse(body: Json, model: string): Json {
   const calls: Json[] = [];
 
   for (const block of records(body.content)) {
-    if (block.type === 'text' && typeof block.text === 'string') {
+    if ('text' === block.type && 'string' === typeof block.text) {
       texts.push(block.text);
-    } else if (block.type === 'tool_use') {
+    } else if ('tool_use' === block.type) {
       calls.push({
         id: block.id,
         type: 'function',
@@ -305,7 +305,7 @@ async function* sseFrames(
   let ended = false;
 
   function line(value: string): SSEFrame | undefined {
-    if (value === '') {
+    if ('' === value) {
       const frame = data.length ? { event, data: data.join('\n') } : undefined;
       event = '';
       data = [];
@@ -314,12 +314,12 @@ async function* sseFrames(
     if (value.startsWith(':')) return undefined;
 
     const colon = value.indexOf(':');
-    const field = colon < 0 ? value : value.slice(0, colon);
-    let content = colon < 0 ? '' : value.slice(colon + 1);
+    const field = 0 > colon ? value : value.slice(0, colon);
+    let content = 0 > colon ? '' : value.slice(colon + 1);
     if (content.startsWith(' ')) content = content.slice(1);
 
-    if (field === 'event') event = content;
-    if (field === 'data') data.push(content);
+    if ('event' === field) event = content;
+    if ('data' === field) data.push(content);
     return undefined;
   }
 
@@ -364,7 +364,7 @@ async function* sseFrames(
 }
 
 function frameObject(frame: SSEFrame): Json | undefined {
-  if (!frame.data.trim() || frame.data.trim() === '[DONE]') return undefined;
+  if (!frame.data.trim() || '[DONE]' === frame.data.trim()) return undefined;
   const value: unknown = JSON.parse(frame.data);
   if (!isRecord(value)) throw new Error('Expected an SSE JSON object');
   return value;
@@ -372,9 +372,9 @@ function frameObject(frame: SSEFrame): Json | undefined {
 
 function upstreamError(value: Json): Error {
   const detail = isRecord(value.error) ? value.error : value;
-  const message = typeof detail.message === 'string'
+  const message = 'string' === typeof detail.message
     ? detail.message
-    : typeof value.error === 'string'
+    : 'string' === typeof value.error
       ? value.error
       : 'Upstream stream error';
   return new Error(message);
@@ -423,18 +423,18 @@ export async function* openAIChunksFromAnthropic(
       throw upstreamError(value);
     }
 
-    if (type === 'message_start') {
+    if ('message_start' === type) {
       const message = isRecord(value.message) ? value.message : {};
-      if (typeof message.id === 'string') id = message.id;
-      if (typeof message.model === 'string') model = message.model;
+      if ('string' === typeof message.id) id = message.id;
+      if ('string' === typeof message.model) model = message.model;
       if (isRecord(message.usage)) usage = { ...usage, ...message.usage };
       yield chunk(id, model, { role: 'assistant', content: '' });
-    } else if (type === 'content_block_start') {
+    } else if ('content_block_start' === type) {
       const block = isRecord(value.content_block) ? value.content_block : {};
-      const blockIndex = typeof value.index === 'number' ? value.index : 0;
-      if (block.type === 'text' && typeof block.text === 'string' && block.text) {
+      const blockIndex = 'number' === typeof value.index ? value.index : 0;
+      if ('text' === block.type && 'string' === typeof block.text && block.text) {
         yield chunk(id, model, { content: block.text });
-      } else if (block.type === 'tool_use') {
+      } else if ('tool_use' === block.type) {
         const state: AnthropicToolState = {
           index: nextToolIndex++,
           initialInput: block.input,
@@ -451,27 +451,27 @@ export async function* openAIChunksFromAnthropic(
           }],
         });
       }
-    } else if (type === 'content_block_delta') {
+    } else if ('content_block_delta' === type) {
       const delta = isRecord(value.delta) ? value.delta : {};
-      if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+      if ('text_delta' === delta.type && 'string' === typeof delta.text) {
         yield chunk(id, model, { content: delta.text });
       } else if (
-        delta.type === 'input_json_delta' &&
-        typeof delta.partial_json === 'string'
+        'input_json_delta' === delta.type &&
+        'string' === typeof delta.partial_json
       ) {
-        const state = tools.get(typeof value.index === 'number' ? value.index : 0);
+        const state = tools.get('number' === typeof value.index ? value.index : 0);
         if (state && !state.closed) {
           if (delta.partial_json.length) state.receivedArguments = true;
           yield toolArguments(state, delta.partial_json);
         }
       }
-    } else if (type === 'content_block_stop') {
-      const state = tools.get(typeof value.index === 'number' ? value.index : 0);
-      if (state) {
+    } else if ('content_block_stop' === type) {
+      const state = tools.get('number' === typeof value.index ? value.index : 0);
+      if (state !== undefined) {
         const closing = closeTool(state);
         if (closing) yield closing;
       }
-    } else if (type === 'message_delta') {
+    } else if ('message_delta' === type) {
       const delta = isRecord(value.delta) ? value.delta : {};
       if (delta.stop_reason != null) {
         finishReason = anthropicFinish(delta.stop_reason);
@@ -480,7 +480,7 @@ export async function* openAIChunksFromAnthropic(
         usage = { ...usage, ...value.usage };
         usageProvided = true;
       }
-    } else if (type === 'message_stop') {
+    } else if ('message_stop' === type) {
       for (const state of tools.values()) {
         const closing = closeTool(state);
         if (closing) yield closing;
@@ -513,10 +513,10 @@ function stripSchema(value: unknown): unknown {
 }
 
 function geminiParts(value: unknown): Json[] {
-  if (typeof value === 'string') return [{ text: value }];
+  if ('string' === typeof value) return [{ text: value }];
   const parts: Json[] = [];
   for (const part of records(value)) {
-    if (part.type === 'text' && typeof part.text === 'string') {
+    if ('text' === part.type && 'string' === typeof part.text) {
       parts.push({ text: part.text });
     } else {
       const image = dataImage(part);
@@ -533,13 +533,13 @@ export function openAIToGeminiRequest(body: Json, model: string): Json {
   const toolNames = new Map<string, string>();
 
   for (const message of records(body.messages)) {
-    if (message.role === 'system' || message.role === 'developer') {
+    if ('system' === message.role || 'developer' === message.role) {
       system.push(textOf(message.content));
       continue;
     }
 
-    if (message.role === 'tool') {
-      const callId = typeof message.tool_call_id === 'string'
+    if ('tool' === message.role) {
+      const callId = 'string' === typeof message.tool_call_id
         ? message.tool_call_id
         : '';
       const text = textOf(message.content);
@@ -555,13 +555,13 @@ export function openAIToGeminiRequest(body: Json, model: string): Json {
       continue;
     }
 
-    if (message.role !== 'user' && message.role !== 'assistant') continue;
+    if ('user' !== message.role && 'assistant' !== message.role) continue;
     const parts = geminiParts(message.content);
-    if (message.role === 'assistant') {
+    if ('assistant' === message.role) {
       for (const call of records(message.tool_calls)) {
         if (!isRecord(call.function)) continue;
         const definition = call.function;
-        if (typeof call.id === 'string' && typeof definition.name === 'string') {
+        if ('string' === typeof call.id && 'string' === typeof definition.name) {
           toolNames.set(call.id, definition.name);
         }
         parts.push({
@@ -573,7 +573,7 @@ export function openAIToGeminiRequest(body: Json, model: string): Json {
       }
     }
     contents.push({
-      role: message.role === 'assistant' ? 'model' : 'user',
+      role: 'assistant' === message.role ? 'model' : 'user',
       parts,
     });
   }
@@ -628,7 +628,7 @@ export function geminiToOpenAIResponse(body: Json, model: string): Json {
   const calls: Json[] = [];
 
   for (const part of records(content.parts)) {
-    if (typeof part.text === 'string') texts.push(part.text);
+    if ('string' === typeof part.text) texts.push(part.text);
     if (isRecord(part.functionCall)) {
       calls.push({
         id: `call_${calls.length}`,
@@ -671,13 +671,13 @@ export async function* openAIChunksFromGemini(
   const candidates = new Map<number, GeminiCandidateState>();
 
   for await (const frame of sseFrames(upstream)) {
-    if (frame.data.trim() === '[DONE]') break;
+    if ('[DONE]' === frame.data.trim()) break;
     const value = frameObject(frame);
-    if (!value) continue;
-    if (frame.event === 'error' || value.error !== undefined) {
+    if (undefined === value) continue;
+    if ('error' === frame.event || value.error !== undefined) {
       throw upstreamError(value);
     }
-    if (typeof value.modelVersion === 'string') model = value.modelVersion;
+    if ('string' === typeof value.modelVersion) model = value.modelVersion;
     if (isRecord(value.usageMetadata)) {
       usage = { ...usage, ...value.usageMetadata };
     }
