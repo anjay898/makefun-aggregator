@@ -417,11 +417,11 @@ export async function probeProvider(envUrl: string, provider: ProviderDirectoryE
 export function buildCatalog(_envUrl: string, probes: readonly Probe[], ratings: RatingsFile | null): CatalogReport {
   const providers: CatalogProvider[] = [];
   for (const probe of probes) {
-    if (!probe.ok) continue;
+    if (false === probe.ok) continue;
     const seen = new Set<string>();
     const models: CatalogModel[] = [];
     for (const model of [...probe.models].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-      if (seen.has(model.id)) continue;
+      if (true === seen.has(model.id)) continue;
       seen.add(model.id);
       const row = ratingOfModel(ratings, probe.provider.id, model.id);
       models.push({ id: model.id, free: modelFree(model, row), context_length: row?.context_length ?? model.context_length ?? null });

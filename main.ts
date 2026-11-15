@@ -158,10 +158,10 @@ async function readJson(req: IncomingMessage): Promise<Json | null> {
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
     size += buffer.length;
-    if (size > MAX_BODY_BYTES) return null;
+    if (MAX_BODY_BYTES < size) return null;
     chunks.push(buffer);
   }
-  if (chunks.length === 0) return null;
+  if (0 === chunks.length) return null;
   try {
     const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     return isRecord(value) ? value : null;
@@ -274,7 +274,7 @@ async function deliver(
   }
   if ('gemini' === wire) {
     // Normalize to the OpenAI shape first, then to the client's wire if it is Anthropic's.
-    if (stream && upstream.body !== null) {
+    if (upstream.body !== null && stream) {
       const chunks = openAIChunksFromGemini(upstream.body);
       beginStream(res);
       if ('openai' === clientWire) {
@@ -295,7 +295,7 @@ async function deliver(
   }
   if ('anthropic' === wire) {
     // The client is on the OpenAI wire.
-    if (stream && upstream.body !== null) {
+    if (upstream.body !== null && stream) {
       beginStream(res);
       for await (const chunk of openAIChunksFromAnthropic(upstream.body)) res.write(sseEvent(null, chunk));
       res.write('data: [DONE]\n\n');
@@ -307,7 +307,7 @@ async function deliver(
     return;
   }
   // wire === 'openai', the client is on the Anthropic wire.
-  if (stream && upstream.body !== null) {
+  if (upstream.body !== null && stream) {
     beginStream(res);
     for await (const event of anthropicEventsFromOpenAI(upstream.body, requested)) res.write(event);
     res.end();
@@ -320,7 +320,7 @@ async function deliver(
 /** Serve one client request on either wire, with failover across the ranked candidates. */
 async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readJson(req);
-  if (body === null) {
+  if (null === body) {
     return sendError(res, clientWire, 400, 'invalid_request_error', 'the request body is not one JSON object');
   }
   const requires = requirementsFor(body);
@@ -343,7 +343,7 @@ async function serve(clientWire: 'openai' | 'anthropic', req: IncomingMessage, r
       lastText = (err as Error).message;
       continue;
     }
-    if (!upstream.ok) {
+    if (false === upstream.ok) {
       providerFails.set(pid, (providerFails.get(pid) ?? 0) + 1);
       lastStatus = upstream.status;
       lastText = (await upstream.text().catch(() => '')).slice(0, 300);

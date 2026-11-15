@@ -507,7 +507,7 @@ function stripSchema(value: unknown): unknown {
   if (!isRecord(value)) return value;
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key]) => key !== '$schema')
+      .filter(([key]) => '$schema' !== key)
       .map(([key, child]) => [key, stripSchema(child)]),
   );
 }
@@ -603,17 +603,17 @@ export function openAIToGeminiRequest(body: Json, model: string): Json {
 
   const config: Json = {};
   const maxTokens = body.max_tokens ?? body.max_completion_tokens;
-  if (maxTokens !== undefined && maxTokens !== null) {
+  if (undefined !== maxTokens && null !== maxTokens) {
     config.maxOutputTokens = maxTokens;
   }
-  if (body.temperature !== undefined) config.temperature = body.temperature;
-  if (body.top_p !== undefined) config.topP = body.top_p;
+  if (undefined !== body.temperature) config.temperature = body.temperature;
+  if (undefined !== body.top_p) config.topP = body.top_p;
   const stop = stopSequences(body.stop);
-  if (stop !== undefined) config.stopSequences = stop;
+  if (undefined !== stop) config.stopSequences = stop;
   if (
     isRecord(body.response_format) &&
-    (body.response_format.type === 'json_object' ||
-      body.response_format.type === 'json_schema')
+    ('json_object' === body.response_format.type ||
+      'json_schema' === body.response_format.type)
   ) {
     config.responseMimeType = 'application/json';
   }
@@ -729,14 +729,14 @@ export async function* openAIChunksFromGemini(
         }, null, index);
       }
 
-      if (candidate.finishReason != null) {
+      if (null != candidate.finishReason) {
         state.finishReason = geminiFinish(candidate.finishReason);
       }
     }
   }
 
   const finished = [...candidates.entries()]
-    .filter(([, state]) => state.finishReason !== undefined)
+    .filter(([, state]) => undefined !== state.finishReason)
     .map(([index, state]) => ({
       index,
       delta: {},
