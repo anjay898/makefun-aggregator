@@ -87,7 +87,7 @@ export async function deliver(
     if (upstream.body !== null && stream) {
       const chunks = openAIChunksFromGemini(upstream.body);
       beginStream(res);
-      if ('openai' === clientWire) {
+      if (clientWire === 'openai') {
         for await (const chunk of chunks) res.write(sseEvent(null, chunk));
         res.write('data: [DONE]\n\n');
         res.end();
@@ -99,7 +99,7 @@ export async function deliver(
     }
     const answer: unknown = await upstream.json();
     const openai = geminiToOpenAIResponse(isRecord(answer) ? answer : {}, cand.model.id);
-    if ('openai' === clientWire) sendJson(res, 200, openai);
+    if (clientWire === 'openai') sendJson(res, 200, openai);
     else sendJson(res, 200, openAIToAnthropic(openai, requested));
     return;
   }

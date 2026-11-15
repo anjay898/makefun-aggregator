@@ -12,6 +12,9 @@
 // without final usage fails the wire checks, and stream_options is not an echoed field.
 // The auth header follows the provider's directory row, not its wire: the wire does not decide
 // the header, the brief does (Bearer, x-api-key, x-goog-api-key, or none).
+// A failed call (a refusal status or a thrown fetch) is the caller's problem: serve() counts it
+// against the provider and fails over to the next candidate; this function only ever returns a
+// response the upstream actually sent, so a 402 or 429 arrives here as a normal Response.
 
 import { authHeaders, isRecord, joinBase, type Json } from './providers.ts';
 import { anthropicToOpenAI } from './wire.ts';

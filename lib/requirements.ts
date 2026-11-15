@@ -26,7 +26,11 @@ export function requirementsFromBody(body: Json): Requirement {
   return { tools: Array.isArray(body.tools) && body.tools.length > 0, vision, json: 'json_object' === format || 'json_schema' === format };
 }
 
-/** A cursor over the workload manifest: one entry per client request, in arrival order. */
+/**
+ * A cursor over the workload manifest: one entry per client request, in arrival order.
+ * The cursor is the single place that advances through the manifest, which keeps the
+ * one-entry-per-request rule impossible to break from the serve loop by accident.
+ */
 export class ManifestCursor {
   private index = 0;
   private readonly workload: WorkloadFile | null;
