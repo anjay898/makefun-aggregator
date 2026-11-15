@@ -1,17 +1,17 @@
-// free-model-aggregator-01: one server, two client wires, a directory of free providers.
+// free-model-aggregator-01 — one server, two client wires, a directory of free providers.
 //
-// Built from the kit's starter. The routing, failover and cross-wire serving are the entry's own:
-//   - candidates: every free model (per the sealed quality table) meeting the request's requirements,
+// Built from the kit's starter; the routing, the failover and the cross-wire serving are the entry's own:
+//   - candidates: every free model (per the sealed quality table) that meets the request's requirements,
 //     ranked same-wire first (a request passed through in its own wire keeps every field the provider
-//     echoes), then by rating_milli; a JSON-mode request prefers the openai wire, the one wire that
-//     carries response_format; a provider that has failed twice this trial is demoted below equals.
-//   - failover: a 402, 429, 5xx or a network error moves the request to the next candidate; the
+//     echoes), then by rating_milli; a JSON-mode request prefers the openai wire, the one wire able to
+//     carry response_format; a provider that has failed twice this trial is demoted below its equals.
+//   - failover: a 402, a 429, a 5xx or a network error moves the request to the next candidate; the
 //     failure is counted per provider and remembered for the rest of the trial.
 //   - wires: openai, anthropic and gemini upstreams all serve both client wires. Same-wire traffic
 //     passes through untouched (only the model id is swapped); cross-wire traffic is translated by
-//     lib/wire.ts and lib/wire2.ts, in JSON and in SSE.
+//     lib/wire.ts and lib/wire2.ts, in JSON and in SSE alike.
 // Everything is a pure function of the brief, the requests and the providers' answers: no clock and
-// no randomness, so a replay makes the same choices.
+// no randomness anywhere, so a replay makes the same choices.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
@@ -84,11 +84,11 @@ const byId = (a: ProbedModel, b: ProbedModel): number => (a.id < b.id ? -1 : a.i
 function servedModels(): ServedModel[] {
   const out: ServedModel[] = [];
   for (const probe of probes) {
-    if (!probe.ok) continue;
+    if (false === probe.ok) continue;
     for (const model of [...probe.models].sort(byId)) {
       const row = ratingOfModel(brief.ratings, probe.provider.id, model.id);
-      if (!modelFree(model, row)) continue;
-      out.push({ id: model.id, provider: probe.provider.id, display_name: model.display_name });
+      if (false === modelFree(model, row)) continue;
+      out.push({ display_name: model.display_name, provider: probe.provider.id, id: model.id });
     }
   }
   return out;

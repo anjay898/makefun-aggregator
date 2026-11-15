@@ -1,20 +1,20 @@
 // The brief's three documents and the catalog probe.
 //
 // A trial's brief (the path in MAKEFUN_PROMPT_FILE) carries three JSON documents, and the prose around
-// them does not matter: this file finds each by its `schema` member.
+// them does not matter: this file finds each one by its `schema` member.
 //
-//   - the provider directory (`free-model-aggregator-01/providers/v1`): one row a provider, with its id,
+//   - the provider directory (`free-model-aggregator-01/providers/v1`): one row per provider, with its id,
 //     its wire, its auth scheme, the environment variable a real deployment would read the key from, the
 //     key the simulated service takes, and the base path the entry joins to MAKEFUN_ENV_URL. A directory
-//     entry may give an absolute base_url instead of a path; joinBase takes either.
+//     entry may give an absolute base_url instead of a path; joinBase accepts either.
 //   - the quality table (`free-model-aggregator-01/ratings/v1`): each model's public rating in
 //     milli-points, what it can do (tools, vision, JSON mode, context length) and whether it is free. The
 //     scorer ranks an answer by its rating; a paid model is never a legal pick. This baseline reads the
-//     table's capability columns and free flag (the sealed truth, where a row exists) but never its
+//     table's capability columns and its free flag (the sealed truth, where a row exists) but never its
 //     rating (`--list` shows why in main.ts's header, and the routing TODO there names the gap).
 //   - the workload manifest (`free-model-aggregator-01/workload/v1`): the requests the client will send,
 //     in order, each with its api, whether it streams, its weight and the requirements a model must meet
-//     to serve it.
+//     in order to serve it.
 //
 // It then probes each provider's catalog route in the provider's own wire:
 //
@@ -23,7 +23,7 @@
 //   gemini     GET <base>/v1beta/models      x-goog-api-key: <key>
 //
 // A probe that fails (a refused connection, a non-2xx, a body that is not JSON) leaves its provider out of
-// the catalog and gets no traffic; the trial goes on. Everything here is deterministic: no clock, no
+// the catalog and earns it no traffic; the trial goes on. Everything here is deterministic: no clock, no
 // randomness, so `node main.ts --list` and the register body build the same document (main.ts prints or
 // posts this one object).
 
@@ -411,8 +411,8 @@ export async function probeProvider(envUrl: string, provider: ProviderDirectoryE
  * Its base_url is the directory's own path (`/p/<id>`), never the path joined to `envUrl`: the env's
  * origin differs between a live pass and its replay (a fresh loopback port under the process driver, a
  * fresh pod on the k8s layout), and the catalog is part of the state export a replay must reproduce byte
- * for byte. The scorer compares a reported base_url by its path suffix, so the path passes exactly as the
- * joined URL does; the joined URL reaches a provider, the path names it.
+ * for byte. The scorer compares a reported base_url by its path suffix, so the path passes exactly as
+ * the joined URL does; the joined URL reaches a provider, the path names it.
  */
 export function buildCatalog(_envUrl: string, probes: readonly Probe[], ratings: RatingsFile | null): CatalogReport {
   const providers: CatalogProvider[] = [];

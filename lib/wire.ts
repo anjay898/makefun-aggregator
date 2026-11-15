@@ -1,7 +1,7 @@
 // The client wires and the one upstream wire this baseline speaks.
 //
-// The trial's client calls the entry as an OpenAI service (POST /v1/chat/completions) or an Anthropic one
-// (POST /v1/messages), with a JSON body or with server-sent events. This baseline forwards both to a
+// The trial's client calls the entry as an OpenAI service (POST /v1/chat/completions) or as an Anthropic
+// one (POST /v1/messages), with a JSON body or with server-sent events. This baseline forwards both to a
 // provider on the openai wire and translates back:
 //
 //   - the OpenAI path passes the client's body (with the routed model's id) to the provider and streams
@@ -14,11 +14,11 @@
 //
 // The gemini and anthropic upstream wires are not implemented in this baseline (main.ts answers 501 for a
 // provider on either): a real entry needs their request and event shapes too, which is the biggest single
-// gap in this starter.
+// gap in this starter. (The entry itself implements them in lib/wire2.ts.)
 //
-// Everything here is a pure function of its arguments: no clock and no randomness, so the same body and the
-// same provider answer give the same bytes on a replay. The two model listings use fixed timestamps for the
-// same reason: a `created` that moved between runs would be a nondeterministic document.
+// Everything here is a pure function of its arguments: no clock and no randomness, so the same body and
+// the same provider answer give the same bytes on a replay. The two model listings use fixed timestamps
+// for the same reason: a `created` that moved between runs would be a nondeterministic document.
 
 import { isRecord, type Json } from './providers.ts';
 
