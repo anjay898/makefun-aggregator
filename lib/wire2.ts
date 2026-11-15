@@ -69,7 +69,7 @@ function geminiFinish(value: unknown): string {
 }
 
 function count(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return 'number' === typeof value && Number.isFinite(value) ? value : 0;
 }
 
 function anthropicUsage(value: Json): Json {
@@ -88,7 +88,7 @@ function geminiUsage(value: Json): Json {
   return {
     prompt_tokens: prompt,
     completion_tokens: completion,
-    total_tokens: typeof value.totalTokenCount === 'number'
+    total_tokens: 'number' === typeof value.totalTokenCount
       ? value.totalTokenCount
       : prompt + completion,
   };
@@ -226,7 +226,7 @@ export function openAIToAnthropicRequest(body: Json, model: string): Json {
           properties: {},
         },
       };
-      if (definition.description !== undefined) {
+      if (undefined !== definition.description) {
         converted.description = definition.description;
       }
       return [converted];
@@ -334,11 +334,11 @@ async function* sseFrames(
       let offset = 0;
       for (let index = 0; index < buffer.length; index++) {
         const character = buffer[index];
-        if (character !== '\n' && character !== '\r') continue;
-        if (character === '\r' && index + 1 === buffer.length && !ended) break;
+        if ('\n' !== character && '\r' !== character) continue;
+        if ('\r' === character && index + 1 === buffer.length && !ended) break;
 
         const frame = line(buffer.slice(offset, index));
-        if (character === '\r' && buffer[index + 1] === '\n') index++;
+        if ('\r' === character && '\n' === buffer[index + 1]) index++;
         offset = index + 1;
         if (frame) yield frame;
       }
@@ -685,9 +685,9 @@ export async function* openAIChunksFromGemini(
     const incoming = records(value.candidates);
     for (let position = 0; position < incoming.length; position++) {
       const candidate = incoming[position]!;
-      const index = typeof candidate.index === 'number' ? candidate.index : position;
+      const index = 'number' === typeof candidate.index ? candidate.index : position;
       let state = candidates.get(index);
-      if (!state) {
+      if (undefined === state) {
         state = {
           text: '',
           calls: new Map(),
@@ -701,7 +701,7 @@ export async function* openAIChunksFromGemini(
       const content = isRecord(candidate.content) ? candidate.content : {};
       const parts = records(content.parts);
       const text = parts
-        .map((part) => typeof part.text === 'string' ? part.text : '')
+        .map((part) => 'string' === typeof part.text ? part.text : '')
         .join('');
 
       if (text) {

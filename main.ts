@@ -73,9 +73,9 @@ function log(message: string): void {
 }
 
 async function load(): Promise<void> {
-  if (brief.error !== null) log(brief.error);
+  if (null !== brief.error) log(brief.error);
   probes = await Promise.all(brief.directory.providers.map((provider) => probeProvider(ENV_URL, provider, PROBE_TIMEOUT_MS)));
-  for (const probe of probes) if (!probe.ok && probe.error !== null) log(probe.error);
+  for (const probe of probes) if (!probe.ok && null !== probe.error) log(probe.error);
   catalog = buildCatalog(ENV_URL, probes, brief.ratings);
 }
 
@@ -177,7 +177,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 }
 
 function sendError(res: ServerResponse, wire: 'openai' | 'anthropic', status: number, type: string, message: string): void {
-  if (wire === 'anthropic') sendJson(res, status, anthropicError(type, message));
+  if ('anthropic' === wire) sendJson(res, status, anthropicError(type, message));
   else sendJson(res, status, openAIError(message, type, null));
 }
 
@@ -389,7 +389,7 @@ async function register(port: number, report: CatalogReport): Promise<void> {
   });
   if (!res.ok) throw new Error(`POST ${ENV_URL}/register answered HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
   const reply: unknown = await res.json();
-  if (isRecord(reply) && typeof reply.requests === 'number') log(`registered: the workload holds ${reply.requests} requests`);
+  if (isRecord(reply) && 'number' === typeof reply.requests) log(`registered: the workload holds ${reply.requests} requests`);
 }
 
 function poll(server: Server): void {
@@ -400,9 +400,9 @@ function poll(server: Server): void {
     void (async () => {
       try {
         const res = await fetch(`${ENV_URL}/work`, { signal: AbortSignal.timeout(2000) });
-        if (res.status !== 200) return;
+        if (200 !== res.status) return;
         const work: unknown = await res.json();
-        if (isRecord(work) && work.done === true) {
+        if (isRecord(work) && true === work.done) {
           clearInterval(timer);
           server.close();
           process.exit(0);
@@ -423,7 +423,7 @@ async function start(): Promise<void> {
     await new Promise<void>((resolve) => process.stdout.write(text, () => resolve()));
     process.exit(0);
   }
-  if (ENV_URL === '') throw new Error('MAKEFUN_ENV_URL is not set');
+  if ('' === ENV_URL) throw new Error('MAKEFUN_ENV_URL is not set');
   const server = createServer((req, res) => {
     void handle(req, res).catch((err: unknown) => {
       log((err as Error).stack ?? String(err));
@@ -432,9 +432,9 @@ async function start(): Promise<void> {
   });
   await listen(server);
   const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('the server has no port');
+  if (null === address || 'string' === typeof address) throw new Error('the server has no port');
   const port = address.port;
-  if (port === 8080) throw new Error('the OS picked 8080, which the env owns on one layout: restart the trial');
+  if (8080 === port) throw new Error('the OS picked 8080, which the env owns on one layout: restart the trial');
   log(`listening on 0.0.0.0:${port} with ${catalog.providers.length} answered providers and ${servedModels().length} free models`);
   await register(port, catalog);
   process.on('SIGTERM', () => process.exit(0));
