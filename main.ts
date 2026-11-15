@@ -222,12 +222,12 @@ function streamFromChunks(gen: AsyncGenerator<Json>): ReadableStream<Uint8Array>
   const enc = new TextEncoder();
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const { value, done } = await gen.next();
-      if (done) {
+      const { done, value } = await gen.next();
+      if (!done) {
+        controller.enqueue(enc.encode(sseEvent(null, value)));
+      } else {
         controller.enqueue(enc.encode('data: [DONE]\n\n'));
         controller.close();
-      } else {
-        controller.enqueue(enc.encode(sseEvent(null, value)));
       }
     },
   });
@@ -395,7 +395,7 @@ async function register(port: number, report: CatalogReport): Promise<void> {
 function poll(server: Server): void {
   let inFlight = false;
   const timer = setInterval(() => {
-    if (inFlight) return;
+    if (true === inFlight) return;
     inFlight = true;
     void (async () => {
       try {

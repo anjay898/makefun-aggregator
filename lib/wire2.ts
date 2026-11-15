@@ -278,8 +278,8 @@ export function anthropicToOpenAIResponse(body: Json, model: string): Json {
   }
 
   const message: Json = {
-    role: 'assistant',
     content: texts.length ? texts.join('') : calls.length ? null : '',
+    role: 'assistant',
   };
   if (calls.length) message.tool_calls = calls;
 
@@ -352,7 +352,7 @@ async function* sseFrames(
     const finalFrame = line('');
     if (finalFrame) yield finalFrame;
   } finally {
-    if (!ended) {
+    if (false === ended) {
       try {
         await reader.cancel();
       } catch {
@@ -406,9 +406,9 @@ export async function* openAIChunksFromAnthropic(
   }
 
   function closeTool(state: AnthropicToolState): Json | undefined {
-    if (state.closed) return undefined;
+    if (true === state.closed) return undefined;
     state.closed = true;
-    if (!state.receivedArguments) {
+    if (false === state.receivedArguments) {
       return toolArguments(state, argumentsOf(state.initialInput));
     }
     return undefined;
@@ -492,7 +492,7 @@ export async function* openAIChunksFromAnthropic(
     }
   }
 
-  if (!finished && finishReason !== undefined) {
+  if (false === finished && undefined !== finishReason) {
     for (const state of tools.values()) {
       const closing = closeTool(state);
       if (closing) yield closing;
@@ -642,8 +642,8 @@ export function geminiToOpenAIResponse(body: Json, model: string): Json {
   }
 
   const message: Json = {
-    role: 'assistant',
     content: texts.length ? texts.join('') : calls.length ? null : '',
+    role: 'assistant',
   };
   if (calls.length) message.tool_calls = calls;
   return completion(

@@ -170,9 +170,9 @@ export function authHeaders(auth: AuthScheme, key: string): Record<string, strin
 /** Every JSON object in `text` that carries a string `schema`, in the order they appear. */
 function documentsIn(text: string): Json[] {
   const out: Json[] = [];
-  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+  for (let start = text.indexOf('{'); -1 !== start; start = text.indexOf('{', start + 1)) {
     const end = objectEnd(text, start);
-    if (end === -1) continue;
+    if (-1 === end) continue;
     try {
       const value: unknown = JSON.parse(text.slice(start, end + 1));
       if (isRecord(value) && 'string' === typeof value.schema) out.push(value);
