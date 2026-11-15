@@ -199,6 +199,8 @@ async function callUpstream(cand: Candidate, clientWire: 'openai' | 'anthropic',
   if (stream) headers.accept = 'text/event-stream';
   if (provider.wire === 'openai') {
     const up = clientWire === 'openai' ? { ...body, model: cand.model.id } : anthropicToOpenAI(body, cand.model.id);
+    // A streamed answer must end with a usage chunk; ask for it when the client did not.
+    if (stream && !isRecord(up.stream_options)) up.stream_options = { include_usage: true };
     return fetch(`${base}/v1/chat/completions`, { method: 'POST', headers, body: JSON.stringify(up) });
   }
   if (provider.wire === 'anthropic') {

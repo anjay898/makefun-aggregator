@@ -520,7 +520,7 @@ function geminiParts(value: unknown): Json[] {
       parts.push({ text: part.text });
     } else {
       const image = dataImage(part);
-      if (image) parts.push({ inline_data: image });
+      if (image) parts.push({ inlineData: { mimeType: image.mime_type, data: image.data } });
     }
   }
   return parts;
