@@ -51,6 +51,7 @@ import {
   openAIToGeminiRequest,
 } from './lib/wire2.ts';
 import { candidatesFor, type Candidate } from './lib/candidates.ts';
+import { deliver } from './lib/deliver.ts';
 
 const PROTOCOL_VERSION = 1;
 const POLL_INTERVAL_MS = 100;
@@ -179,106 +180,6 @@ async function callUpstream(cand: Candidate, clientWire: 'openai' | 'anthropic',
     headers,
     body: JSON.stringify(up),
   });
-}
-
-/** An OpenAI-chunk generator as an SSE ReadableStream, for feeding the Anthropic event translator. */
-function streamFromChunks(gen: AsyncGenerator<Json>): ReadableStream<Uint8Array> {
-  const enc = new TextEncoder();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const { done, value } = await gen.next();
-      if (!done) {
-        controller.enqueue(enc.encode(sseEvent(null, value)));
-      } else {
-        controller.enqueue(enc.encode('data: [DONE]\n\n'));
-        controller.close();
-      }
-    },
-  });
-}
-
-function beginStream(res: ServerResponse): void {
-  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-}
-
-async function pipeStream(stream: ReadableStream<Uint8Array>, res: ServerResponse): Promise<void> {
-  const reader = stream.getReader();
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-  } finally {
-    reader.releaseLock();
-    res.end();
-  }
-}
-
-/** Deliver one successful upstream answer to the client, translating where the wires differ. */
-async function deliver(
-  upstream: Response,
-  cand: Candidate,
-  clientWire: 'openai' | 'anthropic',
-  stream: boolean,
-  requested: string,
-  res: ServerResponse,
-): Promise<void> {
-  const wire = cand.probe.provider.wire;
-  if (clientWire === wire) {
-    if (stream && upstream.body !== null) {
-      beginStream(res);
-      await pipeStream(upstream.body, res);
-      return;
-    }
-    const text = await upstream.text();
-    res.writeHead(200, { 'content-type': upstream.headers.get('content-type') ?? 'application/json' });
-    res.end(text);
-    return;
-  }
-  if ('gemini' === wire) {
-    // Normalize to the OpenAI shape first, then to the client's wire if it is Anthropic's.
-    if (upstream.body !== null && stream) {
-      const chunks = openAIChunksFromGemini(upstream.body);
-      beginStream(res);
-      if ('openai' === clientWire) {
-        for await (const chunk of chunks) res.write(sseEvent(null, chunk));
-        res.write('data: [DONE]\n\n');
-        res.end();
-      } else {
-        for await (const event of anthropicEventsFromOpenAI(streamFromChunks(chunks), requested)) res.write(event);
-        res.end();
-      }
-      return;
-    }
-    const answer: unknown = await upstream.json();
-    const openai = geminiToOpenAIResponse(isRecord(answer) ? answer : {}, cand.model.id);
-    if ('openai' === clientWire) sendJson(res, 200, openai);
-    else sendJson(res, 200, openAIToAnthropic(openai, requested));
-    return;
-  }
-  if ('anthropic' === wire) {
-    // The client is on the OpenAI wire.
-    if (upstream.body !== null && stream) {
-      beginStream(res);
-      for await (const chunk of openAIChunksFromAnthropic(upstream.body)) res.write(sseEvent(null, chunk));
-      res.write('data: [DONE]\n\n');
-      res.end();
-      return;
-    }
-    const answer: unknown = await upstream.json();
-    sendJson(res, 200, anthropicToOpenAIResponse(isRecord(answer) ? answer : {}, requested));
-    return;
-  }
-  // wire === 'openai', the client is on the Anthropic wire.
-  if (upstream.body !== null && stream) {
-    beginStream(res);
-    for await (const event of anthropicEventsFromOpenAI(upstream.body, requested)) res.write(event);
-    res.end();
-    return;
-  }
-  const answer: unknown = await upstream.json();
-  sendJson(res, 200, openAIToAnthropic(isRecord(answer) ? answer : {}, requested));
 }
 
 /** Serve one client request on either wire, with failover across the ranked candidates. */
